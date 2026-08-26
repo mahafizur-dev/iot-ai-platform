@@ -1,0 +1,12 @@
+{
+  "extends": "@iot-ai-platform/config/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "declaration": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -1,0 +1,46 @@
+// Phase 1 note: provider is "sqlite" as a local-dev-only stopgap because this
+// environment has no Docker and no accessible local Postgres credentials.
+// The approved architecture (docs/ARCHITECTURE.md §4) targets PostgreSQL 16 +
+// TimescaleDB — see infra/docker-compose.yml for the real target service.
+// Switching provider back to "postgresql" and re-generating the initial
+// migration against that database is the first item of Phase 2 database work.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Minimal seed schema for Phase 1: proves the migration pipeline works and
+/// gives Phase 2 (auth & device management) a starting point. Roles,
+/// permissions, devices, telemetry, alerts, notifications, and AI tables are
+/// intentionally deferred to the phases that implement those features.
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users User[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  organizationId String
+  email          String    @unique
+  passwordHash   String
+  name           String
+  status         String    @default("active")
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("users")
+}

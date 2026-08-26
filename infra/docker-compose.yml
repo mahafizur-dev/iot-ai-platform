@@ -1,0 +1,60 @@
+# Local development stack per docs/ARCHITECTURE.md.
+#
+# Phase 1 note: apps/api's committed prisma/schema.prisma currently targets
+# SQLite (see that file's header comment) because this environment has no
+# Docker/Postgres access to develop and verify against. The `db` service
+# below is still defined against the real target (Postgres + TimescaleDB) so
+# that switching the Prisma datasource back to "postgresql" — the first item
+# of Phase 2 database work — is a config change, not new infrastructure.
+#
+# Redis and the MQTT broker (EMQX) are intentionally omitted until the phases
+# that need them (alerts/notifications background jobs, MQTT ingestion).
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iot_ai_platform}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_ai_platform}
+      POSTGRES_DB: ${POSTGRES_DB:-iot_ai_platform}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_ai_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot_ai_platform}:${POSTGRES_PASSWORD:-iot_ai_platform}@db:5432/${POSTGRES_DB:-iot_ai_platform}
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  db-data:
