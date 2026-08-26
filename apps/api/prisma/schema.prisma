@@ -1,9 +1,10 @@
-// Phase 1 note: provider is "sqlite" as a local-dev-only stopgap because this
-// environment has no Docker and no accessible local Postgres credentials.
-// The approved architecture (docs/ARCHITECTURE.md §4) targets PostgreSQL 16 +
-// TimescaleDB — see infra/docker-compose.yml for the real target service.
-// Switching provider back to "postgresql" and re-generating the initial
-// migration against that database is the first item of Phase 2 database work.
+// Phase 1 note (still true in Phase 2): provider is "sqlite" as a local-dev-only
+// stopgap because this environment has no Docker and no accessible local
+// Postgres credentials. The approved architecture (docs/ARCHITECTURE.md §4)
+// targets PostgreSQL 16 + TimescaleDB — see infra/docker-compose.yml for the
+// real target service. Switching provider back to "postgresql" and
+// re-generating migrations against that database is still pending — tracked
+// as a Phase 3 prerequisite (needed once MQTT/telemetry work starts).
 
 generator client {
   provider = "prisma-client-js"
@@ -14,16 +15,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Minimal seed schema for Phase 1: proves the migration pipeline works and
-/// gives Phase 2 (auth & device management) a starting point. Roles,
-/// permissions, devices, telemetry, alerts, notifications, and AI tables are
-/// intentionally deferred to the phases that implement those features.
 model Organization {
   id        String   @id @default(uuid())
   name      String
   createdAt DateTime @default(now())
 
-  users User[]
+  users   User[]
+  devices Device[]
 
   @@map("organizations")
 }
@@ -39,8 +37,137 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  ownedDevices  Device[]       @relation("DeviceOwner")
+  auditLogs     AuditLog[]
 
   @@index([organizationId])
   @@map("users")
+}
+
+/// Global RBAC catalog (see docs/ARCHITECTURE.md §8). Roles/permissions are
+/// not org-scoped — every org draws from the same catalog, seeded by
+/// prisma/seed.ts.
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+/// Hashed, revocable, rotated-on-use (see docs/ARCHITECTURE.md §8) — never
+/// stores the raw refresh token, only its hash.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Device {
+  id              String    @id @default(uuid())
+  organizationId  String
+  name            String
+  type            String
+  model           String?
+  status          String    @default("unknown")
+  firmwareVersion String?
+  hardwareVersion String?
+  macAddress      String?
+  ownerUserId     String?
+  lastSeenAt      DateTime?
+  metadata        String? // JSON-encoded; see DevicesService for (de)serialization
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deactivatedAt   DateTime?
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  owner        User?              @relation("DeviceOwner", fields: [ownerUserId], references: [id])
+  credentials  DeviceCredential[]
+
+  @@index([organizationId, status])
+  @@map("devices")
+}
+
+/// credentialHash is a fast SHA-256 digest, not argon2: this secures a
+/// high-entropy generated token (not a human-chosen password), so a slow KDF
+/// buys nothing and only adds latency — same convention as GitHub/Stripe API
+/// keys.
+model DeviceCredential {
+  id             String    @id @default(uuid())
+  deviceId       String
+  credentialType String    @default("mqtt_token")
+  credentialHash String
+  issuedAt       DateTime  @default(now())
+  rotatedAt      DateTime?
+  revokedAt      DateTime?
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@map("device_credentials")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String
+  ipAddress    String?
+  metadata     String? // JSON-encoded; see AuditService
+  createdAt    DateTime @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@map("audit_logs")
 }

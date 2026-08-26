@@ -2,6 +2,7 @@ import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
+import { configureApp } from "../src/configure-app";
 
 describe("AppModule (e2e)", () => {
   let app: INestApplication;
@@ -12,6 +13,7 @@ describe("AppModule (e2e)", () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
