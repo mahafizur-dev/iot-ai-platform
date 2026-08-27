@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BellRing, Check, CircleCheck } from "lucide-react";
+import { BellRing, Check, CircleCheck, Sparkles } from "lucide-react";
 import type { AlertResponse } from "@iot-ai-platform/shared-types";
 import { acknowledgeAlert, fetchAlerts, resolveAlert } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useSocket } from "@/lib/use-socket";
+import { useAssistant } from "@/lib/assistant-context";
 import { alertStatusVariant, applyAlertEvent, severityVariant } from "@/lib/alerts";
 import { formatRelativeTime } from "@/lib/format";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -24,6 +25,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number];
 function AlertsScreen() {
   const { user, accessToken, withAuth } = useAuth();
   const { socket } = useSocket(accessToken);
+  const assistant = useAssistant();
 
   const [status, setStatus] = useState<StatusFilter>("open");
   const [alerts, setAlerts] = useState<AlertResponse[] | null>(null);
@@ -31,6 +33,7 @@ function AlertsScreen() {
   const [pending, setPending] = useState<string | null>(null);
 
   const canAct = user?.permissions.includes("alert:ack") ?? false;
+  const canUseAI = user?.permissions.includes("ai:use") ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -170,30 +173,47 @@ function AlertsScreen() {
                       {formatRelativeTime(alert.triggeredAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {alert.status !== "resolved" && canAct && (
-                        <div className="flex justify-end gap-2">
-                          {alert.status === "open" && (
+                      <div className="flex justify-end gap-2">
+                        {canUseAI && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              void assistant.explainAlert(
+                                alert.id,
+                                `${alert.deviceName ?? alert.deviceId}: ${alert.message}`,
+                              )
+                            }
+                          >
+                            <Sparkles aria-hidden />
+                            Explain
+                          </Button>
+                        )}
+                        {alert.status !== "resolved" && canAct && (
+                          <>
+                            {alert.status === "open" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={pending === alert.id}
+                                onClick={() => void act(alert.id, acknowledgeAlert)}
+                              >
+                                <Check aria-hidden />
+                                Ack
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
                               disabled={pending === alert.id}
-                              onClick={() => void act(alert.id, acknowledgeAlert)}
+                              onClick={() => void act(alert.id, resolveAlert)}
                             >
-                              <Check aria-hidden />
-                              Ack
+                              <CircleCheck aria-hidden />
+                              Resolve
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={pending === alert.id}
-                            onClick={() => void act(alert.id, resolveAlert)}
-                          >
-                            <CircleCheck aria-hidden />
-                            Resolve
-                          </Button>
-                        </div>
-                      )}
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

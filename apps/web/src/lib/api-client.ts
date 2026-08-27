@@ -108,7 +108,13 @@ async function requestEnvelope<T>(
 
   const response = await fetch(url, { ...init, headers, credentials: "include", cache: "no-store" });
 
-  if (!response.ok && response.status !== 400 && response.status !== 401 && response.status !== 404) {
+  // Statuses the API answers with its own error envelope; anything else
+  // (a proxy 502, a crash before the filter runs) has no envelope to unwrap.
+  // 429 is here because the AI endpoints are rate-limited and the envelope's
+  // message is what tells the user why.
+  const ENVELOPED = [400, 401, 403, 404, 429, 503];
+
+  if (!response.ok && !ENVELOPED.includes(response.status)) {
     throw new ApiError(`Request failed with status ${response.status}`, response.status);
   }
 
@@ -450,6 +456,50 @@ export function fetchDeviceTrends(
   range: AnalyticsRange,
 ): Promise<DeviceTrends> {
   return analytics<DeviceTrends>(accessToken, `devices/${deviceId}/trends`, range);
+}
+
+export interface AIChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AIResult {
+  text: string;
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  costEstimate: number;
+  latencyMs: number;
+  interactionId: string;
+}
+
+export async function askAssistant(
+  accessToken: string,
+  message: string,
+  history: AIChatMessage[] = [],
+): Promise<AIResult> {
+  return request<AIResult>(
+    apiV1("/ai/chat"),
+    { method: "POST", body: JSON.stringify({ message, history }) },
+    accessToken,
+  );
+}
+
+export async function summarizeDeviceTelemetry(
+  accessToken: string,
+  deviceId: string,
+  range: AnalyticsRange,
+): Promise<AIResult> {
+  return request<AIResult>(
+    apiV1("/ai/telemetry-summary"),
+    { method: "POST", body: JSON.stringify({ deviceId, range }) },
+    accessToken,
+  );
+}
+
+export async function explainAlert(accessToken: string, alertId: string): Promise<AIResult> {
+  return request<AIResult>(apiV1(`/ai/explain-alert/${alertId}`), { method: "POST" }, accessToken);
 }
 
 export async function fetchHealth(): Promise<HealthStatus> {

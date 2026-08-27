@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   ALERT_WRITE: "alert:write",
   ALERT_ACK: "alert:ack",
   ANALYTICS_READ: "analytics:read",
+  AI_USE: "ai:use",
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

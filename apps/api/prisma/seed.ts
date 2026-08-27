@@ -14,6 +14,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.ALERT_WRITE,
     PERMISSIONS.ALERT_ACK,
     PERMISSIONS.ANALYTICS_READ,
+    PERMISSIONS.AI_USE,
   ],
   operator: [
     PERMISSIONS.DEVICE_READ,
@@ -24,6 +25,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.ALERT_WRITE,
     PERMISSIONS.ALERT_ACK,
     PERMISSIONS.ANALYTICS_READ,
+    PERMISSIONS.AI_USE,
   ],
   // A viewer can see alerts but not act on them; notifications need no
   // permission at all, since they are addressed to the reader personally.
@@ -32,6 +34,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.TELEMETRY_READ,
     PERMISSIONS.ALERT_READ,
     PERMISSIONS.ANALYTICS_READ,
+    PERMISSIONS.AI_USE,
   ],
 };
 

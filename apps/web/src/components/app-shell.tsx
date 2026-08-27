@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { AssistantPanel, AssistantTrigger } from "@/components/assistant-panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +59,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
+  const canUseAI = user?.permissions.includes("ai:use") ?? false;
+
   if (pathname === "/login") {
     return <>{children}</>;
   }
@@ -94,9 +97,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <p className="px-5 pb-4 text-xs text-muted-foreground">
-          The AI assistant arrives in a later phase.
-        </p>
+        {canUseAI && (
+          <p className="px-5 pb-4 text-xs text-muted-foreground">
+            Ask the assistant about your fleet from the ✦ in the top bar.
+          </p>
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -118,6 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden md:block" />
 
           <div className="flex items-center gap-1">
+            {user && canUseAI && <AssistantTrigger />}
             {user && <NotificationBell />}
             <ThemeToggle />
 
@@ -151,6 +157,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 px-6 py-8">{children}</main>
       </div>
+
+      {/* Rendered at the shell level so it survives navigation — a
+          conversation shouldn't vanish because you opened a device page. */}
+      {canUseAI && <AssistantPanel />}
     </div>
   );
 }

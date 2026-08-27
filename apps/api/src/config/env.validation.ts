@@ -27,4 +27,21 @@ export const envValidationSchema = Joi.object({
   // probe the device-credential-check oracle (see mqtt/mqtt-auth.controller.ts).
   EMQX_AUTH_HOOK_SECRET: Joi.string().min(16).required(),
   DEVICE_OFFLINE_THRESHOLD_SECONDS: Joi.number().positive().default(90),
+
+  // AI (see docs/ARCHITECTURE.md §9). The provider is swappable by config;
+  // "mock" returns canned responses so the rest of the system — endpoints,
+  // context builder, interaction logging, the frontend assistant — can run
+  // without an API key or a live vendor call.
+  AI_PROVIDER: Joi.string().valid("anthropic", "mock").default("mock"),
+  ANTHROPIC_API_KEY: Joi.string().when("AI_PROVIDER", {
+    is: "anthropic",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  AI_MODEL: Joi.string().default("claude-sonnet-5"),
+  AI_MAX_TOKENS: Joi.number().positive().default(1024),
+  // Per-user ceiling on AI calls (§9 guardrails: "per-user/org rate limiting
+  // on AI endpoints"). AI calls cost money per request in a way no other
+  // endpoint here does.
+  AI_RATE_LIMIT_PER_MINUTE: Joi.number().positive().default(10),
 });

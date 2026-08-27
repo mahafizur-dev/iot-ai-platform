@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Sparkles } from "lucide-react";
 import type { TelemetryPoint } from "@iot-ai-platform/shared-types";
 import { fetchDevice, fetchLatestTelemetry, type DeviceResponse } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useDeviceSubscription, useSocket } from "@/lib/use-socket";
+import { useAssistant } from "@/lib/assistant-context";
 import { formatRelativeTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LiveReadings } from "@/components/device/live-readings";
@@ -35,9 +37,12 @@ function LiveIndicator({ connected }: { connected: boolean }) {
 }
 
 export function DeviceDetail({ deviceId }: { deviceId: string }) {
-  const { accessToken, withAuth } = useAuth();
+  const { user, accessToken, withAuth } = useAuth();
   const { socket, connected } = useSocket(accessToken);
+  const assistant = useAssistant();
   useDeviceSubscription(socket, deviceId);
+
+  const canUseAI = user?.permissions.includes("ai:use") ?? false;
 
   const [device, setDevice] = useState<DeviceResponse | null>(null);
   const [latest, setLatest] = useState<TelemetryPoint[]>([]);
@@ -123,6 +128,18 @@ export function DeviceDetail({ deviceId }: { deviceId: string }) {
           <h1 className="text-2xl font-semibold tracking-tight">{device.name}</h1>
           <StatusBadge status={device.status} />
           <LiveIndicator connected={connected} />
+
+          {canUseAI && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => void assistant.summarizeDevice(deviceId, device.name, "24h")}
+            >
+              <Sparkles aria-hidden />
+              Summarise
+            </Button>
+          )}
         </div>
 
         <p className="text-sm text-muted-foreground">

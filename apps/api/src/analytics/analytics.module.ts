@@ -7,5 +7,8 @@ import { AnalyticsController } from "./analytics.controller";
   imports: [DevicesModule],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
+  // The AI context builder assembles its bounded summaries from these same
+  // aggregates rather than querying telemetry itself.
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

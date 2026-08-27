@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { AssistantProvider } from "@/lib/assistant-context";
 import { AppShell } from "@/components/app-shell";
 import { THEME_STORAGE_KEY } from "@/components/theme-toggle";
 
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          {/* Inside AuthProvider: the assistant's calls go through withAuth. */}
+          <AssistantProvider>
+            <AppShell>{children}</AppShell>
+          </AssistantProvider>
         </AuthProvider>
       </body>
     </html>

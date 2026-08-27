@@ -16,6 +16,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { AIModule } from "./ai/ai.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 
 @Module({
@@ -49,6 +50,7 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
     NotificationsModule,
     AlertsModule,
     AnalyticsModule,
+    AIModule,
     TelemetryModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

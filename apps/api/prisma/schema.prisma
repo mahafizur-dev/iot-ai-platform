@@ -49,6 +49,7 @@ model User {
   resolvedAlerts     Alert[]                  @relation("AlertResolver")
   notifications      Notification[]
   notificationPrefs  NotificationPreference[]
+  aiInteractions     AiInteraction[]
 
   @@index([organizationId])
   @@map("users")
@@ -290,6 +291,37 @@ model NotificationPreference {
 
   @@unique([userId, eventType, channel])
   @@map("notification_preferences")
+}
+
+/// docs/ARCHITECTURE.md §9: every AI call is logged here for audit AND cost
+/// control. `inputContext` records the bounded, authorized context the builder
+/// assembled — never raw credentials, never another org's data — so a
+/// surprising answer can be traced back to what the model was actually shown.
+model AiInteraction {
+  id               String   @id @default(uuid())
+  userId           String
+  organizationId   String
+  provider         String
+  model            String
+  requestType      String
+  inputContext     Json?
+  prompt           String
+  response         String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  /// USD, estimated from the provider's published per-token pricing at call
+  /// time — indicative, not a billing record.
+  costEstimate     Float    @default(0)
+  latencyMs        Int      @default(0)
+  /// Set when the provider call failed; `response` then holds the error text.
+  errorCode        String?
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("ai_interactions")
 }
 
 model AuditLog {
