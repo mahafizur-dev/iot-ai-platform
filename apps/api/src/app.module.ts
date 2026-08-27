@@ -12,6 +12,7 @@ import { RolesModule } from "./roles/roles.module";
 import { DevicesModule } from "./devices/devices.module";
 import { AuditModule } from "./audit/audit.module";
 import { TelemetryModule } from "./telemetry/telemetry.module";
+import { RealtimeModule } from "./realtime/realtime.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 
 @Module({
@@ -41,6 +42,7 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
     RolesModule,
     DevicesModule,
     AuditModule,
+    RealtimeModule,
     TelemetryModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

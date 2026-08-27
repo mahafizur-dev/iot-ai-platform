@@ -9,6 +9,7 @@ import { deviceStatusSchema } from "./schemas/device-status.schema";
 import { deviceEventSchema } from "./schemas/device-event.schema";
 import { commandAckSchema } from "./schemas/command-ack.schema";
 import { resolveTelemetryTimestamp } from "./clock-skew";
+import { RealtimeService } from "../realtime/realtime.service";
 import { INGESTION_QUEUE, type IngestionJobData } from "./telemetry.constants";
 
 /**
@@ -21,7 +22,10 @@ import { INGESTION_QUEUE, type IngestionJobData } from "./telemetry.constants";
 export class TelemetryIngestionProcessor extends WorkerHost {
   private readonly logger = new Logger(TelemetryIngestionProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeService: RealtimeService,
+  ) {
     super();
   }
 
@@ -37,6 +41,23 @@ export class TelemetryIngestionProcessor extends WorkerHost {
     const { deviceId, suffix } = parsedTopic;
     const receivedAtDate = new Date(receivedAt);
 
+    // Resolve the device up front for two reasons. (1) Correctness: telemetry
+    // rows FK to devices, so upserting for an unknown deviceId would fail the
+    // constraint — better to drop the message with a log. (2) Security: the
+    // org segment of the topic is device-supplied and the EMQX ACL only pins
+    // the DEVICE segment (`iot/+/${username}/#`), so a device could publish
+    // under another org's path. Realtime fan-out must use the org we have on
+    // record for the device, never the one the device claimed in the topic.
+    const device = await this.prisma.device.findFirst({
+      where: { id: deviceId },
+      select: { id: true, organizationId: true },
+    });
+
+    if (!device) {
+      this.logger.warn(`Ignoring message for unknown device "${deviceId}" (topic "${topic}")`);
+      return;
+    }
+
     let json: unknown;
     try {
       json = JSON.parse(rawPayload);
@@ -47,10 +68,10 @@ export class TelemetryIngestionProcessor extends WorkerHost {
 
     switch (suffix) {
       case "telemetry":
-        await this.handleTelemetry(deviceId, json, receivedAtDate, topic, rawPayload);
+        await this.handleTelemetry(device.organizationId, deviceId, json, receivedAtDate, topic, rawPayload);
         return;
       case "status":
-        await this.handleStatus(deviceId, json, receivedAtDate, topic, rawPayload);
+        await this.handleStatus(device.organizationId, deviceId, json, receivedAtDate, topic, rawPayload);
         return;
       case "events":
         await this.handleEvent(deviceId, json, receivedAtDate, topic, rawPayload);
@@ -64,6 +85,7 @@ export class TelemetryIngestionProcessor extends WorkerHost {
   }
 
   private async handleTelemetry(
+    organizationId: string,
     deviceId: string,
     json: unknown,
     receivedAt: Date,
@@ -88,6 +110,13 @@ export class TelemetryIngestionProcessor extends WorkerHost {
         update: { value: reading.value, payload },
       });
 
+      this.realtimeService.emitTelemetry(organizationId, deviceId, {
+        ts: ts.toISOString(),
+        metric: reading.metric,
+        value: reading.value,
+        payload: reading.payload ?? null,
+      });
+
       if (skewed) {
         await this.recordEvent(deviceId, "error", {
           reason: "clock_skew_detected",
@@ -101,6 +130,7 @@ export class TelemetryIngestionProcessor extends WorkerHost {
   }
 
   private async handleStatus(
+    organizationId: string,
     deviceId: string,
     json: unknown,
     receivedAt: Date,
@@ -117,6 +147,8 @@ export class TelemetryIngestionProcessor extends WorkerHost {
       where: { id: deviceId },
       data: { status: result.data.status, lastSeenAt: receivedAt },
     });
+
+    this.realtimeService.emitDeviceStatus(organizationId, deviceId, result.data.status, receivedAt);
   }
 
   private async handleEvent(
