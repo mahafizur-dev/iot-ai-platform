@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Cpu, LayoutDashboard, LogOut, Radio } from "lucide-react";
+import { BellRing, Cpu, LayoutDashboard, LogOut, Radio, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,8 @@ import {
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/devices", label: "Devices", icon: Cpu, exact: false },
+  { href: "/alerts", label: "Alerts", icon: BellRing, exact: true },
+  { href: "/alert-rules", label: "Alert rules", icon: SlidersHorizontal, exact: true },
 ];
 
 function isActive(pathname: string, href: string, exact: boolean): boolean {
@@ -83,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <p className="px-5 pb-4 text-xs text-muted-foreground">
-          Alerts, analytics, and the AI assistant arrive in later phases.
+          Analytics and the AI assistant arrive in later phases.
         </p>
       </aside>
 
@@ -106,6 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden md:block" />
 
           <div className="flex items-center gap-1">
+            {user && <NotificationBell />}
             <ThemeToggle />
 
             {user && (

@@ -15,6 +15,10 @@ function buildPrisma(device: unknown = { id: "device-1", organizationId: ORG_ID 
   };
 }
 
+function buildAlerts() {
+  return { evaluateReading: jest.fn().mockResolvedValue(undefined) };
+}
+
 function buildRealtime() {
   return { emitTelemetry: jest.fn(), emitDeviceStatus: jest.fn() };
 }
@@ -29,7 +33,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("upserts a valid single telemetry reading keyed on (deviceId, ts, metric)", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -62,7 +66,7 @@ describe("TelemetryIngestionProcessor", () => {
     // device can publish under another org's path — the emit must not follow it.
     const prisma = buildPrisma({ id: "device-1", organizationId: ORG_ID });
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -78,7 +82,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("drops messages for an unknown device instead of violating the telemetry FK", async () => {
     const prisma = buildPrisma(null);
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -95,7 +99,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("upserts every reading in a batch", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -114,7 +118,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("clamps a far-future device timestamp and logs a clock-skew device event", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -140,7 +144,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("records a malformed_payload device event on invalid JSON, without crashing", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await expect(
       processor.process(
@@ -161,7 +165,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("records a malformed_payload device event when the schema doesn't match", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -178,7 +182,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("updates device status and lastSeenAt on a status message", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -204,7 +208,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("records a device_events row for an events-topic message", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -227,7 +231,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("records a command_ack device event for a commands/ack message", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await processor.process(
       buildJob({
@@ -245,7 +249,7 @@ describe("TelemetryIngestionProcessor", () => {
   it("ignores messages on an unrecognized topic shape without throwing", async () => {
     const prisma = buildPrisma();
     const realtime = buildRealtime();
-    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never);
+    const processor = new TelemetryIngestionProcessor(prisma as never, realtime as never, buildAlerts() as never);
 
     await expect(
       processor.process(buildJob({ topic: "not-iot-shaped", rawPayload: "{}", receivedAt: RECEIVED_AT })),

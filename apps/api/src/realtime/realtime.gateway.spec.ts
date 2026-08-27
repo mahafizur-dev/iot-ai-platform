@@ -48,13 +48,15 @@ function buildGateway(options: { validToken?: boolean; deviceFound?: boolean } =
 
 describe("RealtimeGateway", () => {
   describe("handleConnection", () => {
-    it("joins the org room from the verified token, with no DB lookup", () => {
+    it("joins the org and user rooms from the verified token, with no DB lookup", () => {
       const { gateway } = buildGateway();
       const client = buildClient("good-token");
 
       gateway.handleConnection(client as never);
 
-      expect(client.join).toHaveBeenCalledWith("org:org-1");
+      // Both rooms come straight out of the token: org for fleet-wide
+      // telemetry and alerts, user for that person's notifications.
+      expect(client.join).toHaveBeenCalledWith(["org:org-1", `user:${PAYLOAD.sub}`]);
       expect(client.disconnect).not.toHaveBeenCalled();
       expect(client.data.user).toEqual(PAYLOAD);
     });

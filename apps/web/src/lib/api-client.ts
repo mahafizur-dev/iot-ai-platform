@@ -1,8 +1,12 @@
 import type {
+  AlertResponse,
+  AlertRuleResponse,
   ApiResponse,
   ApiSuccessResponse,
   DeviceStatusPayload,
   HealthStatus,
+  NotificationPreferenceResponse,
+  NotificationResponse,
   TelemetryAggregatePoint,
   TelemetryPoint,
 } from "@iot-ai-platform/shared-types";
@@ -234,6 +238,166 @@ export async function rotateDeviceCredential(
   return result.credential;
 }
 
+export interface AlertListQuery {
+  page?: number;
+  limit?: number;
+  status?: string;
+  severity?: string;
+  deviceId?: string;
+}
+
+export interface AlertPage {
+  items: AlertResponse[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export async function fetchAlerts(
+  accessToken: string,
+  query: AlertListQuery = {},
+): Promise<AlertPage> {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+
+  const envelope = await requestEnvelope<AlertResponse[]>(
+    apiV1(`/alerts${queryString({ ...query, page, limit })}`),
+    { method: "GET" },
+    accessToken,
+  );
+
+  return {
+    items: envelope.data,
+    page: envelope.meta?.page ?? page,
+    limit: envelope.meta?.limit ?? limit,
+    total: envelope.meta?.total ?? envelope.data.length,
+  };
+}
+
+export async function acknowledgeAlert(
+  accessToken: string,
+  alertId: string,
+): Promise<AlertResponse> {
+  return request<AlertResponse>(
+    apiV1(`/alerts/${alertId}/acknowledge`),
+    { method: "POST" },
+    accessToken,
+  );
+}
+
+export async function resolveAlert(accessToken: string, alertId: string): Promise<AlertResponse> {
+  return request<AlertResponse>(apiV1(`/alerts/${alertId}/resolve`), { method: "POST" }, accessToken);
+}
+
+export async function fetchAlertRules(accessToken: string): Promise<AlertRuleResponse[]> {
+  return request<AlertRuleResponse[]>(apiV1("/alert-rules"), { method: "GET" }, accessToken);
+}
+
+export interface AlertRuleInput {
+  deviceId?: string;
+  metric: string;
+  condition: string;
+  threshold: number;
+  thresholdSecondary?: number;
+  severity?: string;
+  enabled?: boolean;
+}
+
+export async function createAlertRule(
+  accessToken: string,
+  input: AlertRuleInput,
+): Promise<AlertRuleResponse> {
+  return request<AlertRuleResponse>(
+    apiV1("/alert-rules"),
+    { method: "POST", body: JSON.stringify(input) },
+    accessToken,
+  );
+}
+
+export async function updateAlertRule(
+  accessToken: string,
+  ruleId: string,
+  input: Partial<AlertRuleInput>,
+): Promise<AlertRuleResponse> {
+  return request<AlertRuleResponse>(
+    apiV1(`/alert-rules/${ruleId}`),
+    { method: "PATCH", body: JSON.stringify(input) },
+    accessToken,
+  );
+}
+
+export async function deleteAlertRule(accessToken: string, ruleId: string): Promise<void> {
+  await request<{ deleted: true }>(apiV1(`/alert-rules/${ruleId}`), { method: "DELETE" }, accessToken);
+}
+
+export async function fetchNotifications(
+  accessToken: string,
+  options: { unreadOnly?: boolean; limit?: number } = {},
+): Promise<NotificationResponse[]> {
+  return request<NotificationResponse[]>(
+    apiV1(
+      `/notifications${queryString({
+        unreadOnly: options.unreadOnly ? "true" : undefined,
+        limit: options.limit ?? 20,
+      })}`,
+    ),
+    { method: "GET" },
+    accessToken,
+  );
+}
+
+export async function fetchUnreadCount(accessToken: string): Promise<number> {
+  const result = await request<{ unreadCount: number }>(
+    apiV1("/notifications/unread-count"),
+    { method: "GET" },
+    accessToken,
+  );
+
+  return result.unreadCount;
+}
+
+export async function markNotificationRead(
+  accessToken: string,
+  notificationId: string,
+): Promise<NotificationResponse> {
+  return request<NotificationResponse>(
+    apiV1(`/notifications/${notificationId}/read`),
+    { method: "PATCH" },
+    accessToken,
+  );
+}
+
+export async function markAllNotificationsRead(accessToken: string): Promise<number> {
+  const result = await request<{ updated: number }>(
+    apiV1("/notifications/read-all"),
+    { method: "POST" },
+    accessToken,
+  );
+
+  return result.updated;
+}
+
+export async function fetchNotificationPreferences(
+  accessToken: string,
+): Promise<NotificationPreferenceResponse[]> {
+  return request<NotificationPreferenceResponse[]>(
+    apiV1("/notifications/preferences"),
+    { method: "GET" },
+    accessToken,
+  );
+}
+
+export async function updateNotificationPreferences(
+  accessToken: string,
+  preferences: NotificationPreferenceResponse[],
+): Promise<NotificationPreferenceResponse[]> {
+  return request<NotificationPreferenceResponse[]>(
+    apiV1("/notifications/preferences"),
+    { method: "PATCH", body: JSON.stringify({ preferences }) },
+    accessToken,
+  );
+}
+
 export async function fetchHealth(): Promise<HealthStatus> {
   // /health is one of the two routes excluded from the api/v1 prefix.
   const response = await fetch(`${getApiUrl()}/health`, { cache: "no-store" });
@@ -245,4 +409,12 @@ export async function fetchHealth(): Promise<HealthStatus> {
   return unwrap<HealthStatus>(response);
 }
 
-export type { DeviceStatusPayload, TelemetryAggregatePoint, TelemetryPoint };
+export type {
+  AlertResponse,
+  AlertRuleResponse,
+  DeviceStatusPayload,
+  NotificationPreferenceResponse,
+  NotificationResponse,
+  TelemetryAggregatePoint,
+  TelemetryPoint,
+};

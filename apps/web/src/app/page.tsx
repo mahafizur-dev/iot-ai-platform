@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Cpu, CircleSlash, Wifi, HelpCircle } from "lucide-react";
-import { fetchDevicePage, type DeviceResponse } from "@/lib/api-client";
+import { ArrowRight, BellRing, Cpu, CircleSlash, Wifi, HelpCircle } from "lucide-react";
+import { fetchAlerts, fetchDevicePage, type DeviceResponse } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useSocket } from "@/lib/use-socket";
 import { applyStatusChange, summarizeFleet } from "@/lib/fleet";
@@ -32,6 +32,7 @@ function Overview() {
   const { socket } = useSocket(accessToken);
 
   const [devices, setDevices] = useState<DeviceResponse[] | null>(null);
+  const [openAlerts, setOpenAlerts] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,8 +53,28 @@ function Overview() {
     };
   }, [withAuth]);
 
+  // Only the count matters here, so ask for a single row and read `meta.total`
+  // rather than pulling every open alert down to measure the list.
+  useEffect(() => {
+    let cancelled = false;
+
+    withAuth((token) => fetchAlerts(token, { status: "open", limit: 1 }))
+      .then((page) => {
+        if (!cancelled) setOpenAlerts(page.total);
+      })
+      .catch(() => {
+        // A viewer without alert:read still gets a working overview; the tile
+        // just stays blank rather than blocking the whole page.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [withAuth]);
+
   // The gateway joins every socket to its org room on connect, so status
-  // changes for the whole fleet arrive without an explicit subscription.
+  // changes and alerts for the whole fleet arrive without an explicit
+  // subscription.
   useEffect(() => {
     if (!socket) return;
 
@@ -63,9 +84,24 @@ function Overview() {
       );
     };
 
+    const onAlertTriggered = () => setOpenAlerts((current) => (current ?? 0) + 1);
+
+    const onAlertUpdated = (event: { alert: { status: string } }) => {
+      // The tile counts `status === "open"`, which is what the seed query
+      // asked for — so acknowledging counts as leaving, not just resolving.
+      if (event.alert.status !== "open") {
+        setOpenAlerts((current) => Math.max(0, (current ?? 1) - 1));
+      }
+    };
+
     socket.on("device:status_changed", onStatus);
+    socket.on("alert:triggered", onAlertTriggered);
+    socket.on("alert:updated", onAlertUpdated);
+
     return () => {
       socket.off("device:status_changed", onStatus);
+      socket.off("alert:triggered", onAlertTriggered);
+      socket.off("alert:updated", onAlertUpdated);
     };
   }, [socket]);
 
@@ -78,7 +114,7 @@ function Overview() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Live fleet health. Alerts, analytics, and the AI assistant land in later phases.
+          Live fleet health and open alerts. Analytics and the AI assistant land in later phases.
         </p>
       </div>
 
@@ -88,7 +124,7 @@ function Overview() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Devices" value={summary.total} icon={Cpu} loading={loading} />
         <StatCard
           label="Online"
@@ -111,6 +147,14 @@ function Overview() {
           icon={HelpCircle}
           accent="warning"
           loading={loading}
+        />
+        <StatCard
+          label="Open alerts"
+          value={openAlerts ?? 0}
+          icon={BellRing}
+          accent={openAlerts ? "destructive" : undefined}
+          loading={openAlerts === null}
+          hint="Updates live"
         />
       </div>
 

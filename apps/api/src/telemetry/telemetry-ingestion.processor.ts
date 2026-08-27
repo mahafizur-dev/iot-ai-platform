@@ -10,6 +10,7 @@ import { deviceEventSchema } from "./schemas/device-event.schema";
 import { commandAckSchema } from "./schemas/command-ack.schema";
 import { resolveTelemetryTimestamp } from "./clock-skew";
 import { RealtimeService } from "../realtime/realtime.service";
+import { AlertEvaluationService } from "../alerts/alert-evaluation.service";
 import { INGESTION_QUEUE, type IngestionJobData } from "./telemetry.constants";
 
 /**
@@ -25,6 +26,7 @@ export class TelemetryIngestionProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtimeService: RealtimeService,
+    private readonly alertEvaluationService: AlertEvaluationService,
   ) {
     super();
   }
@@ -115,6 +117,17 @@ export class TelemetryIngestionProcessor extends WorkerHost {
         metric: reading.metric,
         value: reading.value,
         payload: reading.payload ?? null,
+      });
+
+      // Evaluated after the row is persisted, so an alert always has the
+      // reading behind it on disk. Failures inside are caught per rule there
+      // and never fail this job — the telemetry is the thing that must land.
+      await this.alertEvaluationService.evaluateReading({
+        organizationId,
+        deviceId,
+        metric: reading.metric,
+        value: reading.value,
+        ts,
       });
 
       if (skewed) {

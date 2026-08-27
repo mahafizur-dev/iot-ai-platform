@@ -1,11 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import type { Server } from "socket.io";
 import type {
+  AlertResponse,
   ClientToServerEvents,
+  NotificationResponse,
   ServerToClientEvents,
   TelemetryPoint,
 } from "@iot-ai-platform/shared-types";
-import { deviceRoom, orgRoom } from "@iot-ai-platform/shared-types";
+import { deviceRoom, orgRoom, userRoom } from "@iot-ai-platform/shared-types";
 
 export type RealtimeServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -57,5 +59,23 @@ export class RealtimeService {
     this.server
       .to([orgRoom(organizationId), deviceRoom(deviceId)])
       .emit("device:status_changed", { deviceId, status, at: at.toISOString() });
+  }
+
+  /**
+   * Alerts go to the org room only, not the device room: an alert is an
+   * organizational concern, and anyone watching a single device's page is in
+   * the org room anyway. Never throttled — dropping an alert is not an option.
+   */
+  emitAlertTriggered(organizationId: string, alert: AlertResponse): void {
+    this.server?.to(orgRoom(organizationId)).emit("alert:triggered", { alert });
+  }
+
+  emitAlertUpdated(organizationId: string, alert: AlertResponse): void {
+    this.server?.to(orgRoom(organizationId)).emit("alert:updated", { alert });
+  }
+
+  /** Addressed to one person, so it goes to their room and nowhere else. */
+  emitNotification(userId: string, notification: NotificationResponse, unreadCount: number): void {
+    this.server?.to(userRoom(userId)).emit("notification:new", { notification, unreadCount });
   }
 }

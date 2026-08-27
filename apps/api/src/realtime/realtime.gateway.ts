@@ -12,7 +12,7 @@ import {
 } from "@nestjs/websockets";
 import type { Socket } from "socket.io";
 import type { SubscribeAck } from "@iot-ai-platform/shared-types";
-import { deviceRoom, orgRoom } from "@iot-ai-platform/shared-types";
+import { deviceRoom, orgRoom, userRoom } from "@iot-ai-platform/shared-types";
 import type { JwtPayload } from "../common/types/auth.types";
 import { DevicesService } from "../devices/devices.service";
 import { RealtimeService, type RealtimeServer } from "./realtime.service";
@@ -66,9 +66,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     }
 
     client.data.user = payload;
-    // organizationId comes straight from the verified token, so the org room
-    // needs no DB lookup to authorize.
-    void client.join(orgRoom(payload.organizationId));
+    // organizationId and sub come straight from the verified token, so neither
+    // room needs a DB lookup to authorize. The user room carries per-person
+    // notifications; the org room carries fleet-wide telemetry and alerts.
+    void client.join([orgRoom(payload.organizationId), userRoom(payload.sub)]);
   }
 
   @SubscribeMessage("subscribe:device")

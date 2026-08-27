@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Interval } from "@nestjs/schedule";
 import { PrismaService } from "../database/prisma.service";
+import { RealtimeService } from "../realtime/realtime.service";
 
 const SWEEP_INTERVAL_MS = 30_000;
 
@@ -18,6 +19,7 @@ export class DeviceWatchdogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   @Interval(SWEEP_INTERVAL_MS)
@@ -26,18 +28,39 @@ export class DeviceWatchdogService {
     const cutoff = new Date(Date.now() - thresholdSeconds * 1000);
 
     try {
-      const result = await this.prisma.device.updateMany({
-        where: {
-          status: { not: "offline" },
-          deactivatedAt: null,
-          OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: cutoff } }],
-        },
+      const where = {
+        status: { not: "offline" },
+        deactivatedAt: null,
+        OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: cutoff } }],
+      };
+
+      // Read the matching rows before flipping them: updateMany returns only a
+      // count, and the dashboard needs to know WHICH devices went offline.
+      // Without this the watchdog's transitions were invisible to the UI until
+      // the next page load — an LWT-driven offline pushed live, a watchdog one
+      // silently.
+      const affected = await this.prisma.device.findMany({
+        where,
+        select: { id: true, organizationId: true },
+      });
+
+      if (affected.length === 0) {
+        return;
+      }
+
+      const at = new Date();
+      await this.prisma.device.updateMany({
+        where: { id: { in: affected.map((device) => device.id) } },
         data: { status: "offline" },
       });
 
-      if (result.count > 0) {
-        this.logger.log(`Marked ${result.count} device(s) offline (no activity since ${cutoff.toISOString()})`);
+      for (const device of affected) {
+        this.realtimeService.emitDeviceStatus(device.organizationId, device.id, "offline", at);
       }
+
+      this.logger.log(
+        `Marked ${affected.length} device(s) offline (no activity since ${cutoff.toISOString()})`,
+      );
     } catch (error) {
       this.logger.error("Offline-watchdog sweep failed", error);
     }

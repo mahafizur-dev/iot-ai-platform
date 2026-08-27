@@ -21,8 +21,9 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users   User[]
-  devices Device[]
+  users      User[]
+  devices    Device[]
+  alertRules AlertRule[]
 
   @@map("organizations")
 }
@@ -38,11 +39,16 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization  Organization   @relation(fields: [organizationId], references: [id])
-  roles         UserRole[]
-  refreshTokens RefreshToken[]
-  ownedDevices  Device[]       @relation("DeviceOwner")
-  auditLogs     AuditLog[]
+  organization       Organization             @relation(fields: [organizationId], references: [id])
+  roles              UserRole[]
+  refreshTokens      RefreshToken[]
+  ownedDevices       Device[]                 @relation("DeviceOwner")
+  auditLogs          AuditLog[]
+  createdAlertRules  AlertRule[]              @relation("AlertRuleCreator")
+  acknowledgedAlerts Alert[]                  @relation("AlertAcknowledger")
+  resolvedAlerts     Alert[]                  @relation("AlertResolver")
+  notifications      Notification[]
+  notificationPrefs  NotificationPreference[]
 
   @@index([organizationId])
   @@map("users")
@@ -99,12 +105,12 @@ model UserRole {
 /// Hashed, revocable, rotated-on-use (see docs/ARCHITECTURE.md §8) — never
 /// stores the raw refresh token, only its hash.
 model RefreshToken {
-  id         String    @id @default(uuid())
-  userId     String
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -134,6 +140,8 @@ model Device {
   credentials  DeviceCredential[]
   telemetry    Telemetry[]
   events       DeviceEvent[]
+  alertRules   AlertRule[]
+  alerts       Alert[]
 
   @@index([organizationId, status])
   @@map("devices")
@@ -191,15 +199,108 @@ model DeviceEvent {
   @@map("device_events")
 }
 
+/// docs/ARCHITECTURE.md §4. `deviceId` null means "every device in the org",
+/// which is why rule lookup at ingest matches on `deviceId IN (thisDevice, NULL)`.
+/// `thresholdSecondary` is the upper bound and is only meaningful for the
+/// `range` condition — the schema sketch lists a single `threshold`, but a
+/// range needs two numbers and nothing else in the row can carry the second.
+model AlertRule {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  deviceId           String?
+  metric             String
+  condition          String
+  threshold          Float
+  thresholdSecondary Float?
+  severity           String   @default("warning")
+  enabled            Boolean  @default(true)
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  creator      User?        @relation("AlertRuleCreator", fields: [createdBy], references: [id])
+  alerts       Alert[]
+
+  @@index([organizationId, enabled])
+  @@index([deviceId, metric])
+  @@map("alert_rules")
+}
+
+/// One row per breach episode, not per breaching reading: while a rule stays
+/// breached its alert stays open, and it is resolved (automatically by the
+/// sweep, or by a person) when the metric recovers. See AlertEvaluationService.
+model Alert {
+  id             String    @id @default(uuid())
+  ruleId         String
+  deviceId       String
+  metric         String
+  status         String    @default("open")
+  severity       String
+  message        String
+  context        Json?
+  triggeredAt    DateTime  @default(now())
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+
+  rule         AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  device       Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  acknowledger User?     @relation("AlertAcknowledger", fields: [acknowledgedBy], references: [id])
+  resolver     User?     @relation("AlertResolver", fields: [resolvedBy], references: [id])
+
+  @@index([status, severity, triggeredAt])
+  @@index([deviceId, triggeredAt])
+  /// Enforces the one-open-alert-per-rule-and-device rule at the database
+  /// level, so two concurrent ingestion workers racing on the same breach
+  /// can't both open one. Partial (status <> 'resolved') — added by raw SQL
+  /// in the migration, since Prisma cannot express a filtered unique index.
+  @@map("alerts")
+}
+
+model Notification {
+  id                String    @id @default(uuid())
+  userId            String
+  type              String
+  title             String
+  body              String
+  relatedEntityType String?
+  relatedEntityId   String?
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// Absence of a row means "enabled" — a user who has never touched their
+/// preferences still gets notified, and only an explicit opt-out is stored.
+model NotificationPreference {
+  id        String  @id @default(uuid())
+  userId    String
+  eventType String
+  channel   String
+  enabled   Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType, channel])
+  @@map("notification_preferences")
+}
+
 model AuditLog {
-  id           String   @id @default(uuid())
-  actorUserId  String?
-  action       String
-  entityType   String
-  entityId     String
-  ipAddress    String?
-  metadata     String? // JSON-encoded; see AuditService
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String
+  ipAddress   String?
+  metadata    String? // JSON-encoded; see AuditService
+  createdAt   DateTime @default(now())
 
   actor User? @relation(fields: [actorUserId], references: [id])
 

@@ -3,6 +3,7 @@ import { BullModule } from "@nestjs/bullmq";
 import { MqttModule } from "../mqtt/mqtt.module";
 import { DevicesModule } from "../devices/devices.module";
 import { RealtimeModule } from "../realtime/realtime.module";
+import { AlertsModule } from "../alerts/alerts.module";
 import { INGESTION_QUEUE } from "./telemetry.constants";
 import { TelemetryIngestionService } from "./telemetry-ingestion.service";
 import { TelemetryIngestionProcessor } from "./telemetry-ingestion.processor";
@@ -15,6 +16,7 @@ import { DeviceWatchdogService } from "./device-watchdog.service";
     MqttModule,
     DevicesModule,
     RealtimeModule,
+    AlertsModule,
     BullModule.registerQueue({ name: INGESTION_QUEUE }),
   ],
   controllers: [TelemetryController],

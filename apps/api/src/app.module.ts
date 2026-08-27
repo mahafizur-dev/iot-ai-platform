@@ -13,6 +13,8 @@ import { DevicesModule } from "./devices/devices.module";
 import { AuditModule } from "./audit/audit.module";
 import { TelemetryModule } from "./telemetry/telemetry.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { AlertsModule } from "./alerts/alerts.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 
 @Module({
@@ -43,6 +45,8 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
     DevicesModule,
     AuditModule,
     RealtimeModule,
+    NotificationsModule,
+    AlertsModule,
     TelemetryModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
