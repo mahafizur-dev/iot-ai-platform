@@ -114,7 +114,7 @@ function Overview() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Live fleet health and open alerts. Analytics and the AI assistant land in later phases.
+          Live fleet health and open alerts. The AI assistant lands in a later phase.
         </p>
       </div>
 

@@ -9,6 +9,7 @@ import { useSocket } from "@/lib/use-socket";
 import { applyStatusChange } from "@/lib/fleet";
 import { formatRelativeTime } from "@/lib/format";
 import { RequireAuth } from "@/components/RequireAuth";
+import { FilterToggle } from "@/components/filter-toggle";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = ["all", "online", "offline", "unknown"] as const;
@@ -117,27 +117,17 @@ function DevicesScreen() {
           />
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg bg-muted p-1" role="group" aria-label="Status filter">
-          {STATUS_FILTERS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={status === option}
-              onClick={() => {
-                setStatus(option);
-                setPage(1);
-              }}
-              className={cn(
-                "rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
-                status === option
-                  ? "bg-background text-foreground shadow"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        <FilterToggle
+          options={STATUS_FILTERS}
+          value={status}
+          onChange={(next) => {
+            setStatus(next);
+            // A filter change invalidates the current page number — page 3 of
+            // "all" is rarely page 3 of "offline".
+            setPage(1);
+          }}
+          label="Status filter"
+        />
       </div>
 
       {error && (

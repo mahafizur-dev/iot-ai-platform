@@ -54,6 +54,18 @@ export class DeviceWatchdogService {
         data: { status: "offline" },
       });
 
+      // device_events is the record connectivity analytics reads. Without a
+      // row here, a device that dies silently (no LWT, no status message)
+      // would look permanently online to the uptime calculation.
+      await this.prisma.deviceEvent.createMany({
+        data: affected.map((device) => ({
+          deviceId: device.id,
+          eventType: "disconnected",
+          payload: { source: "watchdog", thresholdSeconds },
+          ts: at,
+        })),
+      });
+
       for (const device of affected) {
         this.realtimeService.emitDeviceStatus(device.organizationId, device.id, "offline", at);
       }

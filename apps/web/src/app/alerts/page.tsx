@@ -9,8 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useSocket } from "@/lib/use-socket";
 import { alertStatusVariant, applyAlertEvent, severityVariant } from "@/lib/alerts";
 import { formatRelativeTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { RequireAuth } from "@/components/RequireAuth";
+import { FilterToggle } from "@/components/filter-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,28 +100,12 @@ function AlertsScreen() {
         </p>
       </div>
 
-      <div
-        className="inline-flex items-center gap-1 rounded-lg bg-muted p-1"
-        role="group"
-        aria-label="Status filter"
-      >
-        {STATUS_FILTERS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={status === option}
-            onClick={() => setStatus(option)}
-            className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
-              status === option
-                ? "bg-background text-foreground shadow"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
+      <FilterToggle
+        options={STATUS_FILTERS}
+        value={status}
+        onChange={setStatus}
+        label="Status filter"
+      />
 
       {error && (
         <p className="text-sm text-destructive" role="alert">

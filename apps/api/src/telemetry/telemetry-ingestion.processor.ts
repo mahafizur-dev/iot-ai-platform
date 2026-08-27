@@ -52,7 +52,10 @@ export class TelemetryIngestionProcessor extends WorkerHost {
     // record for the device, never the one the device claimed in the topic.
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId },
-      select: { id: true, organizationId: true },
+      // `status` comes along so a status message can tell a real transition
+      // from a repeat — only transitions are worth an event row, and uptime
+      // analytics reads those rows.
+      select: { id: true, organizationId: true, status: true },
     });
 
     if (!device) {
@@ -73,7 +76,15 @@ export class TelemetryIngestionProcessor extends WorkerHost {
         await this.handleTelemetry(device.organizationId, deviceId, json, receivedAtDate, topic, rawPayload);
         return;
       case "status":
-        await this.handleStatus(device.organizationId, deviceId, json, receivedAtDate, topic, rawPayload);
+        await this.handleStatus(
+          device.organizationId,
+          deviceId,
+          device.status,
+          json,
+          receivedAtDate,
+          topic,
+          rawPayload,
+        );
         return;
       case "events":
         await this.handleEvent(deviceId, json, receivedAtDate, topic, rawPayload);
@@ -145,6 +156,7 @@ export class TelemetryIngestionProcessor extends WorkerHost {
   private async handleStatus(
     organizationId: string,
     deviceId: string,
+    previousStatus: string,
     json: unknown,
     receivedAt: Date,
     topic: string,
@@ -156,12 +168,26 @@ export class TelemetryIngestionProcessor extends WorkerHost {
       return;
     }
 
+    const { status } = result.data;
+
     await this.prisma.device.updateMany({
       where: { id: deviceId },
-      data: { status: result.data.status, lastSeenAt: receivedAt },
+      data: { status, lastSeenAt: receivedAt },
     });
 
-    this.realtimeService.emitDeviceStatus(organizationId, deviceId, result.data.status, receivedAt);
+    // Record the transition, not the message. A device that republishes
+    // "online" every 30 seconds would otherwise fill device_events with
+    // non-events and skew the uptime calculation built on top of them.
+    if (status !== previousStatus) {
+      await this.recordEvent(
+        deviceId,
+        status === "online" ? "connected" : "disconnected",
+        { source: "status_message", previousStatus },
+        receivedAt,
+      );
+    }
+
+    this.realtimeService.emitDeviceStatus(organizationId, deviceId, status, receivedAt);
   }
 
   private async handleEvent(

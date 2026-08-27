@@ -11,6 +11,7 @@ function buildPrisma(affected: { id: string; organizationId: string }[] = STALE_
       findMany: jest.fn().mockResolvedValue(affected),
       updateMany: jest.fn().mockResolvedValue({ count: affected.length }),
     },
+    deviceEvent: { createMany: jest.fn().mockResolvedValue({ count: affected.length }) },
   };
 }
 
@@ -77,6 +78,27 @@ describe("DeviceWatchdogService", () => {
     );
   });
 
+  it("records a disconnected event per device, which uptime analytics reads", async () => {
+    const prisma = buildPrisma();
+    const service = new DeviceWatchdogService(
+      prisma as never,
+      buildConfig(90) as never,
+      buildRealtime() as never,
+    );
+
+    await service.sweep();
+
+    // Without these rows a device that dies silently — no LWT, no status
+    // message — would look permanently online to calculateUptime.
+    const { data } = prisma.deviceEvent.createMany.mock.calls[0][0];
+    expect(data).toHaveLength(2);
+    expect(data[0]).toMatchObject({
+      deviceId: "device-1",
+      eventType: "disconnected",
+      payload: { source: "watchdog", thresholdSeconds: 90 },
+    });
+  });
+
   it("does nothing at all when no device is stale", async () => {
     const prisma = buildPrisma([]);
     const realtime = buildRealtime();
@@ -89,6 +111,7 @@ describe("DeviceWatchdogService", () => {
     await service.sweep();
 
     expect(prisma.device.updateMany).not.toHaveBeenCalled();
+    expect(prisma.deviceEvent.createMany).not.toHaveBeenCalled();
     expect(realtime.emitDeviceStatus).not.toHaveBeenCalled();
   });
 

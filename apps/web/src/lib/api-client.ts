@@ -1,7 +1,14 @@
 import type {
   AlertResponse,
   AlertRuleResponse,
+  AlertsAnalytics,
+  AnalyticsOverview,
+  AnalyticsRange,
   ApiResponse,
+  DeviceTrends,
+  EventsReport,
+  TelemetryVolumePoint,
+  UptimeReport,
   ApiSuccessResponse,
   DeviceStatusPayload,
   HealthStatus,
@@ -398,6 +405,53 @@ export async function updateNotificationPreferences(
   );
 }
 
+function analytics<T>(accessToken: string, path: string, range: AnalyticsRange): Promise<T> {
+  return request<T>(apiV1(`/analytics/${path}${queryString({ range })}`), { method: "GET" }, accessToken);
+}
+
+export function fetchAnalyticsOverview(
+  accessToken: string,
+  range: AnalyticsRange,
+): Promise<AnalyticsOverview> {
+  return analytics<AnalyticsOverview>(accessToken, "overview", range);
+}
+
+export function fetchTelemetryVolume(
+  accessToken: string,
+  range: AnalyticsRange,
+): Promise<TelemetryVolumePoint[]> {
+  return analytics<TelemetryVolumePoint[]>(accessToken, "telemetry-volume", range);
+}
+
+export function fetchUptimeReport(
+  accessToken: string,
+  range: AnalyticsRange,
+): Promise<UptimeReport> {
+  return analytics<UptimeReport>(accessToken, "uptime", range);
+}
+
+export function fetchEventsReport(
+  accessToken: string,
+  range: AnalyticsRange,
+): Promise<EventsReport> {
+  return analytics<EventsReport>(accessToken, "events", range);
+}
+
+export function fetchAlertsAnalytics(
+  accessToken: string,
+  range: AnalyticsRange,
+): Promise<AlertsAnalytics> {
+  return analytics<AlertsAnalytics>(accessToken, "alerts", range);
+}
+
+export function fetchDeviceTrends(
+  accessToken: string,
+  deviceId: string,
+  range: AnalyticsRange,
+): Promise<DeviceTrends> {
+  return analytics<DeviceTrends>(accessToken, `devices/${deviceId}/trends`, range);
+}
+
 export async function fetchHealth(): Promise<HealthStatus> {
   // /health is one of the two routes excluded from the api/v1 prefix.
   const response = await fetch(`${getApiUrl()}/health`, { cache: "no-store" });
@@ -412,7 +466,14 @@ export async function fetchHealth(): Promise<HealthStatus> {
 export type {
   AlertResponse,
   AlertRuleResponse,
+  AlertsAnalytics,
+  AnalyticsOverview,
+  AnalyticsRange,
+  DeviceTrends,
   DeviceStatusPayload,
+  EventsReport,
+  TelemetryVolumePoint,
+  UptimeReport,
   NotificationPreferenceResponse,
   NotificationResponse,
   TelemetryAggregatePoint,

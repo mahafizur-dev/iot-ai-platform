@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellRing, Cpu, LayoutDashboard, LogOut, Radio, SlidersHorizontal } from "lucide-react";
+import {
+  BarChart3,
+  BellRing,
+  Cpu,
+  LayoutDashboard,
+  LogOut,
+  Radio,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,6 +29,7 @@ const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/devices", label: "Devices", icon: Cpu, exact: false },
   { href: "/alerts", label: "Alerts", icon: BellRing, exact: true },
+  { href: "/analytics", label: "Analytics", icon: BarChart3, exact: true },
   { href: "/alert-rules", label: "Alert rules", icon: SlidersHorizontal, exact: true },
 ];
 
@@ -86,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <p className="px-5 pb-4 text-xs text-muted-foreground">
-          Analytics and the AI assistant arrive in later phases.
+          The AI assistant arrives in a later phase.
         </p>
       </aside>
 

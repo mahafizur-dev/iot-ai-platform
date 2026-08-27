@@ -4,7 +4,7 @@ import type { IngestionJobData } from "./telemetry.constants";
 
 const ORG_ID = "org-1";
 
-function buildPrisma(device: unknown = { id: "device-1", organizationId: ORG_ID }) {
+function buildPrisma(device: unknown = { id: "device-1", organizationId: ORG_ID, status: "unknown" }) {
   return {
     telemetry: { upsert: jest.fn().mockResolvedValue(undefined) },
     device: {
@@ -203,6 +203,55 @@ describe("TelemetryIngestionProcessor", () => {
       "offline",
       new Date(RECEIVED_AT),
     );
+  });
+
+  it("records a connectivity event when the status actually changes", async () => {
+    const prisma = buildPrisma({ id: "device-1", organizationId: ORG_ID, status: "offline" });
+    const processor = new TelemetryIngestionProcessor(
+      prisma as never,
+      buildRealtime() as never,
+      buildAlerts() as never,
+    );
+
+    await processor.process(
+      buildJob({
+        topic: "iot/org-1/device-1/status",
+        rawPayload: JSON.stringify({ status: "online" }),
+        receivedAt: RECEIVED_AT,
+      }),
+    );
+
+    // device_events is what uptime analytics reads, so a transition has to
+    // leave a row behind.
+    expect(prisma.deviceEvent.create).toHaveBeenCalledTimes(1);
+    expect(prisma.deviceEvent.create.mock.calls[0][0].data).toMatchObject({
+      deviceId: "device-1",
+      eventType: "connected",
+    });
+  });
+
+  it("does NOT record an event when the status message repeats the current state", async () => {
+    // A device republishing "online" every 30 seconds would otherwise fill
+    // device_events with non-events and skew the uptime calculation.
+    const prisma = buildPrisma({ id: "device-1", organizationId: ORG_ID, status: "online" });
+    const processor = new TelemetryIngestionProcessor(
+      prisma as never,
+      buildRealtime() as never,
+      buildAlerts() as never,
+    );
+
+    await processor.process(
+      buildJob({
+        topic: "iot/org-1/device-1/status",
+        rawPayload: JSON.stringify({ status: "online" }),
+        receivedAt: RECEIVED_AT,
+      }),
+    );
+
+    expect(prisma.deviceEvent.create).not.toHaveBeenCalled();
+    // The status write and the live push still happen — only the event row is
+    // suppressed.
+    expect(prisma.device.updateMany).toHaveBeenCalled();
   });
 
   it("records a device_events row for an events-topic message", async () => {
