@@ -3,11 +3,21 @@
 import { useEffect, useState } from "react";
 import type { HealthStatus } from "@iot-ai-platform/shared-types";
 import { fetchHealth } from "@/lib/api-client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type State =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; health: HealthStatus };
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
 
 export function ApiStatusCard() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -34,36 +44,37 @@ export function ApiStatusCard() {
   }, []);
 
   return (
-    <div
-      className="max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-      data-testid="api-status-card"
-    >
-      <h2 className="text-sm font-medium text-slate-500">API status</h2>
+    <Card data-testid="api-status-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">API status</CardTitle>
+      </CardHeader>
 
-      {state.kind === "loading" && (
-        <p className="mt-2 text-slate-600" role="status">
-          Checking API…
-        </p>
-      )}
-
-      {state.kind === "error" && (
-        <p className="mt-2 text-red-600" role="alert">
-          Could not reach the API: {state.message}
-        </p>
-      )}
-
-      {state.kind === "ready" && (
-        <div className="mt-2">
-          <p className="flex items-center gap-2 text-emerald-600">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-            {state.health.status}
+      <CardContent>
+        {state.kind === "loading" && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Checking API…
           </p>
-          <p className="mt-1 text-xs text-slate-400">
-            uptime: {state.health.uptimeSeconds}s · checked at{" "}
-            {new Date(state.health.timestamp).toLocaleTimeString()}
+        )}
+
+        {state.kind === "error" && (
+          <p className="text-sm text-destructive" role="alert">
+            Could not reach the API: {state.message}
           </p>
-        </div>
-      )}
-    </div>
+        )}
+
+        {state.kind === "ready" && (
+          <div className="space-y-1">
+            <p className="flex items-center gap-2 text-lg font-semibold text-success">
+              <span aria-hidden className="inline-block size-2 rounded-full bg-success" />
+              {state.health.status}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              up {formatUptime(state.health.uptimeSeconds)} · checked{" "}
+              {new Date(state.health.timestamp).toLocaleTimeString()}
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Loader2, Radio } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const { login, user, initializing } = useAuth();
@@ -35,52 +40,59 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
-
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-          />
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-6 py-12">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="flex items-center justify-center gap-2">
+          <Radio className="size-6 text-primary" aria-hidden />
+          <span className="text-lg font-semibold tracking-tight">IoT AI Platform</span>
         </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign in</CardTitle>
+            <CardDescription>Use your organization account to continue.</CardDescription>
+          </CardHeader>
 
-        {error && (
-          <p className="text-sm text-red-600" role="alert">
-            {error}
-          </p>
-        )}
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-slate-900 px-3 py-2 text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting && <Loader2 className="animate-spin" aria-hidden />}
+                {submitting ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

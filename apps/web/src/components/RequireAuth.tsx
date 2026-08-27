@@ -23,7 +23,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (initializing) {
     return (
-      <p className="text-slate-500" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading…
       </p>
     );
