@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { BullModule } from "@nestjs/bullmq";
+import { ScheduleModule } from "@nestjs/schedule";
 import { envValidationSchema } from "./config/env.validation";
 import { DatabaseModule } from "./database/database.module";
 import { HealthModule } from "./health/health.module";
@@ -9,6 +11,7 @@ import { UsersModule } from "./users/users.module";
 import { RolesModule } from "./roles/roles.module";
 import { DevicesModule } from "./devices/devices.module";
 import { AuditModule } from "./audit/audit.module";
+import { TelemetryModule } from "./telemetry/telemetry.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 
 @Module({
@@ -17,6 +20,20 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
       isGlobal: true,
       validationSchema: envValidationSchema,
     }),
+    ScheduleModule.forRoot(),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = new URL(config.getOrThrow<string>("REDIS_URL"));
+        return {
+          connection: {
+            host: redisUrl.hostname,
+            port: Number(redisUrl.port) || 6379,
+            password: redisUrl.password || undefined,
+          },
+        };
+      },
+    }),
     DatabaseModule,
     HealthModule,
     AuthModule,
@@ -24,6 +41,7 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
     RolesModule,
     DevicesModule,
     AuditModule,
+    TelemetryModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
 })

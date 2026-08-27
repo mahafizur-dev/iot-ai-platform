@@ -1,17 +1,18 @@
-// Phase 1 note (still true in Phase 2): provider is "sqlite" as a local-dev-only
-// stopgap because this environment has no Docker and no accessible local
-// Postgres credentials. The approved architecture (docs/ARCHITECTURE.md §4)
-// targets PostgreSQL 16 + TimescaleDB — see infra/docker-compose.yml for the
-// real target service. Switching provider back to "postgresql" and
-// re-generating migrations against that database is still pending — tracked
-// as a Phase 3 prerequisite (needed once MQTT/telemetry work starts).
+// Phase 2: switched to the real target — PostgreSQL 16 + TimescaleDB (see
+// docs/ARCHITECTURE.md §4). The SQLite migrations from Phases 0/1 were
+// dev-only with no real data behind them and have been removed; the Postgres
+// baseline migration is generated fresh (see docs/ARCHITECTURE.md-adjacent
+// setup notes in the Phase 2 plan) rather than translated by hand. The
+// `Telemetry` model below becomes a TimescaleDB hypertable via raw SQL
+// (Prisma has no native hypertable/continuous-aggregate support) — see
+// apps/api/prisma/timescale/telemetry-hypertable.sql.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -131,6 +132,8 @@ model Device {
   organization Organization       @relation(fields: [organizationId], references: [id])
   owner        User?              @relation("DeviceOwner", fields: [ownerUserId], references: [id])
   credentials  DeviceCredential[]
+  telemetry    Telemetry[]
+  events       DeviceEvent[]
 
   @@index([organizationId, status])
   @@map("devices")
@@ -153,6 +156,39 @@ model DeviceCredential {
 
   @@index([deviceId])
   @@map("device_credentials")
+}
+
+/// TimescaleDB hypertable (converted via raw SQL, see
+/// apps/api/prisma/timescale/telemetry-hypertable.sql). `ts` is the
+/// device-reported timestamp, not server receipt time — the dedup story
+/// (a re-delivered QoS1 message upserts onto the same row instead of
+/// creating a duplicate) only holds if `ts` is stable across redelivery.
+/// Server receipt time is preserved inside `payload.receivedAt` for
+/// reconciliation when clock skew forces a clamp (see TelemetryIngestionProcessor).
+model Telemetry {
+  deviceId String
+  ts       DateTime
+  metric   String
+  value    Float
+  payload  Json?
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([deviceId, ts, metric])
+  @@map("telemetry")
+}
+
+model DeviceEvent {
+  id        String   @id @default(uuid())
+  deviceId  String
+  eventType String
+  payload   Json?
+  ts        DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, ts])
+  @@map("device_events")
 }
 
 model AuditLog {

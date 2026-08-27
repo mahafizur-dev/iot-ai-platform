@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   DEVICE_WRITE: "device:write",
   DEVICE_DELETE: "device:delete",
   DEVICE_CREDENTIALS_ROTATE: "device:credentials:rotate",
+  TELEMETRY_READ: "telemetry:read",
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

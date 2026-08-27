@@ -13,7 +13,7 @@ export function configureApp(app: INestApplication): void {
 
   app.use(cookieParser());
   app.enableCors({ origin: config.getOrThrow<string>("CORS_ORIGIN"), credentials: true });
-  app.setGlobalPrefix("api/v1", { exclude: ["health"] });
+  app.setGlobalPrefix("api/v1", { exclude: ["health", "mqtt/auth"] });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

@@ -6,5 +6,6 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "transformIgnorePatterns": ["node_modules/(?!.*@nestjs.(bullmq|bull-shared))"],
   "testTimeout": 20000
 }

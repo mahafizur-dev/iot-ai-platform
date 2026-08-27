@@ -1,14 +1,9 @@
 # Local development stack per docs/ARCHITECTURE.md.
 #
-# Phase 1 note: apps/api's committed prisma/schema.prisma currently targets
-# SQLite (see that file's header comment) because this environment has no
-# Docker/Postgres access to develop and verify against. The `db` service
-# below is still defined against the real target (Postgres + TimescaleDB) so
-# that switching the Prisma datasource back to "postgresql" — the first item
-# of Phase 2 database work — is a config change, not new infrastructure.
-#
-# Redis and the MQTT broker (EMQX) are intentionally omitted until the phases
-# that need them (alerts/notifications background jobs, MQTT ingestion).
+# Phase 2: Redis and the MQTT broker (EMQX) are now wired in — this is the
+# phase that needs both (ingestion backpressure via BullMQ/Redis, device
+# telemetry via EMQX). apps/api's prisma/schema.prisma now targets this `db`
+# service's real Postgres+TimescaleDB directly (see that file's header comment).
 
 services:
   db:
@@ -28,6 +23,35 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  emqx:
+    image: emqx/emqx:5
+    restart: unless-stopped
+    environment:
+      EMQX_AUTH_HOOK_SECRET: ${EMQX_AUTH_HOOK_SECRET:-dev-only-emqx-hook-secret-change-me}
+    volumes:
+      - ./emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+      - ./emqx/acl.conf:/opt/emqx/etc/acl.conf:ro
+    ports:
+      - "1883:1883" # MQTT
+      - "8083:8083" # MQTT over WebSocket
+      - "18083:18083" # Dashboard
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ..
@@ -36,11 +60,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-iot_ai_platform}:${POSTGRES_PASSWORD:-iot_ai_platform}@db:5432/${POSTGRES_DB:-iot_ai_platform}
       CORS_ORIGIN: http://localhost:3000
+      MQTT_BROKER_URL: mqtt://emqx:1883
+      REDIS_URL: redis://redis:6379
+      EMQX_AUTH_HOOK_SECRET: ${EMQX_AUTH_HOOK_SECRET:-dev-only-emqx-hook-secret-change-me}
+      DEVICE_OFFLINE_THRESHOLD_SECONDS: ${DEVICE_OFFLINE_THRESHOLD_SECONDS:-90}
     ports:
       - "4000:4000"
 
