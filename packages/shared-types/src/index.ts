@@ -4,3 +4,4 @@ export * from "./telemetry";
 export * from "./alerts";
 export * from "./analytics";
 export * from "./realtime";
+export * from "./ble";

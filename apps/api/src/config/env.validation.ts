@@ -8,7 +8,11 @@ export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid("development", "test", "production").default("development"),
   PORT: Joi.number().port().default(4000),
   DATABASE_URL: Joi.string().required(),
-  CORS_ORIGIN: Joi.string().required(),
+  // Wildcard is disallowed outright: configure-app.ts pairs this with
+  // `credentials: true`, and a wildcard origin + credentials is a
+  // browser-enforced CORS misconfiguration that leaks authenticated
+  // responses to any origin.
+  CORS_ORIGIN: Joi.string().disallow("*").required(),
 
   // Auth (see docs/ARCHITECTURE.md §8): distinct secrets for access vs.
   // refresh tokens so a leaked access-token secret alone can't be used to
@@ -27,6 +31,14 @@ export const envValidationSchema = Joi.object({
   // probe the device-credential-check oracle (see mqtt/mqtt-auth.controller.ts).
   EMQX_AUTH_HOOK_SECRET: Joi.string().min(16).required(),
   DEVICE_OFFLINE_THRESHOLD_SECONDS: Joi.number().positive().default(90),
+
+  // Platform-wide rate limiting (Phase 7 hardening, see docs/ARCHITECTURE.md
+  // §8). Scoped separately from AI_RATE_LIMIT_PER_MINUTE, which guards a
+  // costlier per-request path with its own per-user/org tracker.
+  RATE_LIMIT_PER_MINUTE: Joi.number().positive().default(100),
+  // Tighter than the platform default: §8 calls out `/auth/*` specifically
+  // as a brute-force target (login/register/refresh).
+  AUTH_RATE_LIMIT_PER_MINUTE: Joi.number().positive().default(10),
 
   // AI (see docs/ARCHITECTURE.md §9). The provider is swappable by config;
   // "mock" returns canned responses so the rest of the system — endpoints,

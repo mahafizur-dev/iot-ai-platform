@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { ThrottlerGuard } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 import type { ApiSuccessResponse } from "@iot-ai-platform/shared-types";
 import { AuthService } from "./auth.service";
@@ -30,6 +31,7 @@ interface LoginResponse {
 }
 
 @Controller("auth")
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
